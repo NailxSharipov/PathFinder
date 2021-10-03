@@ -10,7 +10,7 @@ struct ReusableRoad {
     let id: Int
     var path: UnsafeArray<Int8>
     var length: Int
-    var mask: RoadMask
+    var mask: RoadHash
     var movement: BitMatrix
     
     @inline(__always)
@@ -26,9 +26,9 @@ struct ReusableRoad {
     init(id: Int, count: Int) {
         self.id = id
         length = 0
-        path = UnsafeArray<Int8>(capacity: count)
+        path = UnsafeArray<Int8>(capacity: count, repeating: 0)
         movement = BitMatrix(size: count)
-        mask = RoadMask()
+        mask = RoadHash()
     }
     
     @inline(__always)

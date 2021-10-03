@@ -1,11 +1,11 @@
 //
-//  RoadMask.swift
+//  RoadHash.swift
 //  PathFinder
 //
 //  Created by Nail Sharipov on 26.09.2021.
 //
 
-public struct RoadMask: Hashable {
+public struct RoadHash: Hashable {
     
     let a: Int
     let b: Int
@@ -35,8 +35,18 @@ public struct RoadMask: Hashable {
         self.b = path[n - 1]
         self.subMask = m.clearBit(index: a).clearBit(index: b)
     }
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(subMask)
     }
+
+    @inline(__always)
+    func opposite(_ c: Int) -> Int {
+        if a == c {
+            return b
+        } else {
+            return a
+        }
+    }
+    
 }

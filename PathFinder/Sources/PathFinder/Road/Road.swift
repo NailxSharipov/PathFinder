@@ -9,7 +9,7 @@ public final class Road {
     
     public let path: [Int]
     public let length: Int
-    public let mask: RoadMask
+    public let mask: RoadHash
     let movement: BitMatrix
     var isRemoved: Bool = false
     
@@ -34,7 +34,7 @@ public final class Road {
         self.length = length
         self.path = path
         self.movement = movement
-        self.mask = RoadMask(path: path)
+        self.mask = RoadHash(path: path)
     }
     
     deinit {

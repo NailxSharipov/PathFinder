@@ -5,7 +5,7 @@
 //  Created by Nail Sharipov on 26.09.2021.
 //
 
-public final class RoadSolution {
+public struct RoadSolution {
   
     private let matrix: UnsafeAdMatrix
     private let linkMatrix: LinkBitMatrix
@@ -19,7 +19,7 @@ public final class RoadSolution {
     }
     
     public static func minPath(matrix: AdMatrix) -> [Int] {
-        let solution = RoadSolution(matrix: matrix)
+        var solution = RoadSolution(matrix: matrix)
         let result = solution.solve()
         solution.dealocate()
         return result
@@ -40,7 +40,7 @@ public final class RoadSolution {
         roadPool.dealocate()
     }
 
-    private func solve() -> [Int] {
+    private mutating func solve() -> [Int] {
         var cities = self.createCities()
         self.clearCities(cities: &cities)
 
@@ -52,9 +52,7 @@ public final class RoadSolution {
         let cityIndex = self.firstNotDeletedCitiyIndex()
         let city = cities[cityIndex]
         print("last step")
-//        print(city.roadsDescription(roadPool: roadPool))
 
-//        let allMask: UInt64 = ((1 << count) &- 1) - 0b11
         let allMask: UInt64 = ((1 << count) &- 1) - self.restCitiesMask()
         
         let n = city.roads.count
@@ -70,7 +68,7 @@ public final class RoadSolution {
             j &+= 1
         }
         
-        var tempPath = UnsafeArray<Int8>(capacity: count)
+        var tempPath = UnsafeArray<Int8>(capacity: count, repeating: 0)
 
         for i in 1..<n {
             let mark0 = markBuffer[i]
@@ -113,7 +111,7 @@ public final class RoadSolution {
         return minPath.map({ Int($0) })
     }
     
-    private func createCities() -> UnsafeList<ReusableCity> {
+    private mutating func createCities() -> UnsafeList<ReusableCity> {
         let baseMovement = linkMatrix.base
         
         let count = linkMatrix.size
@@ -133,7 +131,7 @@ public final class RoadSolution {
                         let a8 = Int8(a)
                         road.path.append(a8)
                         road.path.append(b8)
-                        road.mask = RoadMask(a: a, b: b, subMask: 0)
+                        road.mask = RoadHash(a: a, b: b, subMask: 0)
                         roadPool[road.id] = road
 
                         roads.append(road.id)
@@ -154,14 +152,14 @@ public final class RoadSolution {
         return cities
     }
     
-    private func clearCities(cities: inout UnsafeList<ReusableCity>) {
+    private mutating func clearCities(cities: inout UnsafeList<ReusableCity>) {
         let count = linkMatrix.size
         
-        var bestRoads = [RoadMask: ReusableRoad]()
+        var bestRoads = [RoadHash: ReusableRoad]()
         let capacity = count * count * count * count
         bestRoads.reserveCapacity(capacity)
         
-        var markBuffer = UnsafeList<RoadMark>(capacity: capacity)
+//        var markBuffer = UnsafeList<RoadMark>(capacity: capacity)
         
         var tempRoad = ReusableRoad(id: -1, count: count)
         
@@ -169,43 +167,110 @@ public final class RoadSolution {
         
         var step = 0
         
+        var markMap = UnsafeArray<UnsafeList<RoadMark>>(capacity: count) {
+            UnsafeList<RoadMark>(capacity: capacity)
+        }
+        var indexList = UnsafeList<Int>(capacity: count)
+
         while nextCityIndex >= 0 {
             let city = cities[nextCityIndex]
             print("step: \(step), city: \(nextCityIndex)")
             print("roads count: \(city.roads.count)")
             step += 1
-            markBuffer.removeAll()
+//            markBuffer.removeAll()
             var j = 0
             while j < city.roads.count {
                 let roadId = city.roads[j]
                 let road = roadPool[roadId]
                 roadPool.addRemoved(id: roadId)
+                let a = road.oposite(city.index)
+                
                 let mark = RoadMark(road: road)
-                markBuffer.append(mark)
+//                markBuffer.append(mark)
+                markMap[a].append(mark)
                 j &+= 1
             }
+
+            for i in 0..<count where markMap[i].count > 0 {
+                indexList.append(i)
+            }
             
-            let n = markBuffer.count
-            for i in 1..<n {
-                let mark0 = markBuffer[i]
-                for j in 0..<i {
-                    let mark1 = markBuffer[j]
-                    if (mark0.subMask & mark1.subMask == 0) && !mark0.isSameTarget(mark: mark1) {
-                        if merge(mark0: mark0, mark1: mark1, newRoad: &tempRoad) {
-                            if let prevBestRoad = bestRoads[tempRoad.mask] {
-                                if prevBestRoad.length > tempRoad.length {
-                                    let newRoad = roadPool.push(road: tempRoad)
-                                    bestRoads[newRoad.mask] = newRoad
-                                    roadPool.release(prevBestRoad.id)
+            print(indexList)
+            
+            let n = indexList.count
+            for i in 0..<n-1 {
+                let mIx0 = indexList[i]
+                let list0 = markMap[mIx0]
+                for j in 0..<list0.count {
+                    let mark0 = list0[j]
+                    for k in i+1..<n {
+                        let mIx1 = indexList[k]
+                        let list1 = markMap[mIx1]
+                        for t in 0..<list1.count {
+                            
+                            let mark1 = list1[t]
+                            if (mark0.subMask & mark1.subMask == 0) && !mark0.isSameTarget(mark: mark1) {
+        
+                                // вдруг уже есть
+        
+                                let road0 = self.roadPool[mark0.id]
+                                let road1 = self.roadPool[mark1.id]
+        
+//                                let length = road0.length + road1.length
+//
+//                                let footprint = Footprint(road0: road0, road1: road1)
+        
+                                if get(road0: road0, road1: road1, newRoad: &tempRoad) {
+                                    if let prevBestRoad = bestRoads[tempRoad.mask] {
+                                        if prevBestRoad.length > tempRoad.length {
+                                            let newRoad = roadPool.push(road: tempRoad)
+                                            bestRoads[newRoad.mask] = newRoad
+                                            roadPool.release(prevBestRoad.id)
+                                        }
+                                    } else {
+                                        let newRoad = roadPool.push(road: tempRoad)
+                                        bestRoads[newRoad.mask] = newRoad
+                                    }
                                 }
-                            } else {
-                                let newRoad = roadPool.push(road: tempRoad)
-                                bestRoads[newRoad.mask] = newRoad
                             }
                         }
                     }
                 }
             }
+            
+            
+            
+//            let n = markBuffer.count
+//            for i in 1..<n {
+//                let mark0 = markBuffer[i]
+//                for j in 0..<i {
+//                    let mark1 = markBuffer[j]
+//                    if (mark0.subMask & mark1.subMask == 0) && !mark0.isSameTarget(mark: mark1) {
+//
+//                        // вдруг уже есть
+//
+//                        let road0 = self.roadPool[mark0.id]
+//                        let road1 = self.roadPool[mark1.id]
+//
+//                        let length = road0.length + road1.length
+//
+//                        let footprint = Footprint(road0: road0, road1: road1)
+//
+//                        if get(road0: road0, road1: road1, newRoad: &tempRoad) {
+//                            if let prevBestRoad = bestRoads[tempRoad.mask] {
+//                                if prevBestRoad.length > tempRoad.length {
+//                                    let newRoad = roadPool.push(road: tempRoad)
+//                                    bestRoads[newRoad.mask] = newRoad
+//                                    roadPool.release(prevBestRoad.id)
+//                                }
+//                            } else {
+//                                let newRoad = roadPool.push(road: tempRoad)
+//                                bestRoads[newRoad.mask] = newRoad
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
             for index in 0..<city.roads.count {
                 let roadId = city.roads[index]
@@ -233,11 +298,23 @@ public final class RoadSolution {
             bestRoads.removeAll(keepingCapacity: true)
             
             nextCityIndex = self.nextCity(cities: cities)
+            
+            for i in 0..<indexList.count {
+                let a = indexList[i]
+                markMap[a].removeAll()
+            }
+            indexList.removeAll()
         }
         
+        for i in 0..<markMap.count {
+            markMap[i].dealocate()
+        }
+        markMap.dealocate()
+        indexList.dealocate()
+
         tempRoad.dealocate()
         
-        markBuffer.dealocate()
+//        markBuffer.dealocate()
     }
     
     // a < b always!
@@ -262,7 +339,7 @@ public final class RoadSolution {
             let visited = subMask.setBit(index: abc.a).setBit(index: abc.b)
             let factor = newRoad.movement.newConnectivityFactor(start: abc.a, end: abc.b, visited: visited, count: factorCount)
             if factor {
-                newRoad.mask = RoadMask(a: abc.a, b: abc.b, subMask: subMask)
+                newRoad.mask = RoadHash(a: abc.a, b: abc.b, subMask: subMask)
                 newRoad.length = length
                 return true
             }
@@ -270,7 +347,37 @@ public final class RoadSolution {
             return false
         }
 
-        newRoad.mask = RoadMask(a: abc.a, b: abc.b, subMask: subMask)
+        newRoad.mask = RoadHash(a: abc.a, b: abc.b, subMask: subMask)
+        newRoad.length = length
+        return true
+    }
+    
+    @inline(__always)
+    private func get(road0: ReusableRoad, road1: ReusableRoad, newRoad: inout ReusableRoad) -> Bool {
+        let abc = self.merge(road0: road0, road1: road1, newRoad: &newRoad)
+        
+        newRoad.movement.copyFrom(matrix: road0.movement)
+        newRoad.movement.formIntersect(map: road1.movement)
+
+        let subMask = road0.mask.subMask | road1.mask.subMask | (1 << abc.c)
+        
+        let count = road0.path.count &+ road1.path.count
+        let length = road0.length &+ road1.length
+        
+        let factorCount = newRoad.movement.count - count + 1
+        if factorCount > 0 {
+            let visited = subMask.setBit(index: abc.a).setBit(index: abc.b)
+            let factor = newRoad.movement.newConnectivityFactor(start: abc.a, end: abc.b, visited: visited, count: factorCount)
+            if factor {
+                newRoad.mask = RoadHash(a: abc.a, b: abc.b, subMask: subMask)
+                newRoad.length = length
+                return true
+            }
+            
+            return false
+        }
+
+        newRoad.mask = RoadHash(a: abc.a, b: abc.b, subMask: subMask)
         newRoad.length = length
         return true
     }
@@ -351,7 +458,7 @@ public final class RoadSolution {
         return (a: a, b: b, c: c)
     }
     
-    private func nextCity(cities: UnsafeList<ReusableCity>) -> Int {
+    private mutating func nextCity(cities: UnsafeList<ReusableCity>) -> Int {
         guard citiesCount > 2 else {
             return -1
         }

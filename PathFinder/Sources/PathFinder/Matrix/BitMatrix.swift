@@ -274,6 +274,11 @@ struct BitMatrix {
         array.initialize(from: matrix.array, count: count)
     }
     
+    @inline(__always)
+    func connectionsCount(index: Int) -> Int {
+        array[index].nonzeroBitCount
+    }
+    
 }
 
 #if DEBUG

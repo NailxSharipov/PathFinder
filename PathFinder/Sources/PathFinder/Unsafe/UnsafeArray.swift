@@ -5,7 +5,7 @@
 //  Created by Nail Sharipov on 26.09.2021.
 //
 
-struct UnsafeArray<Element: FixedWidthInteger> {
+struct UnsafeArray<Element> {
     
     let buffer: UnsafeMutablePointer<Element>
     
@@ -20,27 +20,6 @@ struct UnsafeArray<Element: FixedWidthInteger> {
         set {
             buffer[index] = newValue
         }
-    }
-    
-    @inline(__always)
-    var first: Element {
-        buffer[0]
-    }
-    
-    @inline(__always)
-    var last: Element {
-        buffer[count - 1]
-    }
-
-    @inline(__always)
-    var toArray: [Element] {
-        var result = [Element](repeating: 0, count: count)
-        var i = 0
-        while i < count {
-            result[i] = buffer[i]
-            i &+= 1
-        }
-        return result
     }
     
     @inline(__always)
@@ -81,9 +60,17 @@ struct UnsafeArray<Element: FixedWidthInteger> {
         count = 0
     }
     
-    init(capacity: Int) {
+    init(capacity: Int, repeating: Element) {
         buffer = UnsafeMutablePointer<Element>.allocate(capacity: capacity)
-        buffer.initialize(repeating: 0, count: capacity)
+        buffer.initialize(repeating: repeating, count: capacity)
+        count = 0
+    }
+    
+    init(capacity: Int, repeating: () -> (Element)) {
+        buffer = UnsafeMutablePointer<Element>.allocate(capacity: capacity)
+        for i in 0..<capacity {
+            buffer[i] = repeating()
+        }
         count = 0
     }
 
